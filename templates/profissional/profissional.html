@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="flex-grow-1 p-4 overflow-auto">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-0">Profissionais</h3>
+            <span class="text-body-secondary">Gerencie a equipe e os horários</span>
+        </div>
+
+        {% if profissional_edit %}
+        <a href="{% url 'gerenciar_profissionais' %}" class="btn btn-primary">
+            + Novo Profissional
+        </a>
+        {% else %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoProfissional">
+            + Novo Profissional
+        </button>
+        {% endif %}
+    </div>
+
+    <form method="GET" action="{% url 'gerenciar_profissionais' %}" class="mb-4">
+        <div class="input-group shadow-sm">
+            <span class="input-group-text border-end-0">🔍</span>
+            <input type="text" name="q" class="form-control border-start-0"
+                placeholder="Buscar profissional por nome, e-mail ou telefone..." value="{{ termo_busca }}">
+            <button class="btn btn-primary px-4" type="submit">Buscar</button>
+            {% if termo_busca %}
+            <a href="{% url 'gerenciar_profissionais' %}" class="btn btn-outline-danger">Limpar</a>
+            {% endif %}
+        </div>
+    </form>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>E-mail</th>
+                            <th>Telefone</th>
+                            <th class="text-end">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for prof in profissionais %}
+                        <tr>
+                            <td>{{ prof.nome }}</td>
+                            <td>{{ prof.email }}</td>
+                            <td>{{ prof.telefone }}</td>
+                            <td class="text-end">
+                                <button type="button"
+                                    class="btn btn-sm {% if prof.tem_agenda %}btn-outline-success{% else %}btn-outline-info{% endif %} me-1"
+                                    data-bs-toggle="modal" data-bs-target="#modalAgenda{{ prof.id }}">
+                                    {% if prof.tem_agenda %}Editar/Visualizar{% else %}Definir Horário{% endif %}
+                                </button>
+
+                                <a href="{% url 'preparar_edicao_profissional' prof.id %}"
+                                    class="btn btn-sm btn-outline-secondary me-1">Editar</a>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                                    data-bs-target="#modalExcluir{{ forloop.counter }}">Excluir</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">
+                                Nenhum profissional encontrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for prof in profissionais %}
+<div class="modal fade text-start" id="modalExcluir{{ forloop.counter }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-danger">
+            <div class="modal-body text-center p-4">
+                <div class="text-danger display-1 mb-3">⚠️</div>
+                <h5 class="mb-2">Tem certeza?</h5>
+                <p class="text-body-secondary small mb-0">
+                    Você está prestes a excluir o profissional
+                    <strong>{{ prof.nome }}</strong>. Esta ação não poderá ser desfeita.
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0 bg-body-tertiary">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <a href="{% url 'excluir_profissional' prof.id %}" class="btn btn-danger btn-sm">
+                    Sim, Excluir Profissional
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="modal fade" id="modalNovoProfissional" tabindex="-1" aria-labelledby="modalNovoProfissionalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoProfissionalLabel">
+                    {% if profissional_edit %}
+                    Editar: <strong>{{ profissional_edit.nome }}</strong>
+                    {% else %}
+                    Cadastrar Profissional
+                    {% endif %}
+                </h5>
+                <a href="{% url 'gerenciar_profissionais' %}" class="btn-close"></a>
+            </div>
+
+            <div class="modal-body">
+                <form method="POST"
+                    action="{% if profissional_edit %}{% url 'preparar_edicao_profissional' profissional_edit.id %}{% else %}{% url 'gerenciar_profissionais' %}{% endif %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Nome Completo</label>
+                        <input type="text" name="nome" class="form-control"
+                            value="{{ profissional_edit.nome|default:'' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">E-mail</label>
+                        <input type="email" name="email" class="form-control"
+                            value="{{ profissional_edit.email|default:'' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telefone (WhatsApp)</label>
+                        <input type="text" name="telefone" class="form-control" placeholder="(00) 00000-0000"
+                            value="{{ profissional_edit.telefone|default:'' }}">
+                    </div>
+                    <div class="modal-footer px-0 pb-0">
+                        <a href="{% url 'gerenciar_profissionais' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if profissional_edit %} Salvar Alterações {% else %} Salvar Cadastro {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for prof in profissionais %}
+<div class="modal fade" id="modalAgenda{{ prof.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Horários de Atendimento: <strong>{{ prof.nome }}</strong>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body bg-body-tertiary">
+                <form method="POST" action="{% url 'salvar_agenda_profissional' prof.id %}">
+                    {% csrf_token %}
+
+                    {% if prof.tem_agenda %}
+                    <div
+                        class="d-flex justify-content-between align-items-center mb-3 p-3 bg-dark rounded border border-warning shadow-sm animate__animated animate__fadeIn">
+                        <span class="text-warning small">Os horários atuais estão carregados em modo de
+                            <strong>visualização segura</strong>.</span>
+                        <button type="button" class="btn btn-sm btn-warning fw-bold"
+                            onclick="liberarCamposAgenda('{{ prof.id }}')">Alterar Horários</button>
+                    </div>
+                    {% endif %}
+
+                    <fieldset id="fieldsetAgenda{{ prof.id }}" {% if prof.tem_agenda %}disabled{% endif %}>
+                        <div class="row fw-bold text-center mb-3 d-none d-md-flex text-body-secondary">
+                            <div class="col-4 text-start">Dia da Semana</div>
+                            <div class="col-3">Início</div>
+                            <div class="col-2"></div>
+                            <div class="col-3">Fim</div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="segunda_ativo"
+                                        id="segunda_{{ prof.id }}" {% if prof.agenda_config.segunda.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2"
+                                        for="segunda_{{ prof.id }}">Segunda-feira</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="segunda_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.segunda.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="segunda_fim" class="form-control"
+                                    value="{{ prof.agenda_config.segunda.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="terca_ativo"
+                                        id="terca_{{ prof.id }}" {% if prof.agenda_config.terca.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2" for="terca_{{ prof.id }}">Terça-feira</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="terca_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.terca.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="terca_fim" class="form-control"
+                                    value="{{ prof.agenda_config.terca.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="quarta_ativo"
+                                        id="quarta_{{ prof.id }}" {% if prof.agenda_config.quarta.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2" for="quarta_{{ prof.id }}">Quarta-feira</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="quarta_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.quarta.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="quarta_fim" class="form-control"
+                                    value="{{ prof.agenda_config.quarta.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="quinta_ativo"
+                                        id="quinta_{{ prof.id }}" {% if prof.agenda_config.quinta.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2" for="quinta_{{ prof.id }}">Quinta-feira</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="quinta_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.quinta.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="quinta_fim" class="form-control"
+                                    value="{{ prof.agenda_config.quinta.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="sexta_ativo"
+                                        id="sexta_{{ prof.id }}" {% if prof.agenda_config.sexta.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2" for="sexta_{{ prof.id }}">Sexta-feira</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="sexta_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.sexta.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="sexta_fim" class="form-control"
+                                    value="{{ prof.agenda_config.sexta.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="sabado_ativo"
+                                        id="sabado_{{ prof.id }}" {% if prof.agenda_config.sabado.ativo %}checked {% endif %}>
+                                    <label class="form-check-label ms-2" for="sabado_{{ prof.id }}">Sábado</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="sabado_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.sabado.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="sabado_fim" class="form-control"
+                                    value="{{ prof.agenda_config.sabado.fim }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-center dia-linha bg-body p-2 rounded border shadow-sm mx-1">
+                            <div class="col-12 col-md-4 mb-2 mb-md-0">
+                                <div class="form-check form-switch fs-5">
+                                    <input class="form-check-input check-dia" type="checkbox" name="domingo_ativo"
+                                        id="domingo_{{ prof.id }}" {% if prof.agenda_config.domingo.ativo %}checked
+                                        {% endif %}>
+                                    <label class="form-check-label ms-2" for="domingo_{{ prof.id }}">Domingo</label>
+                                </div>
+                            </div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="domingo_inicio" class="form-control"
+                                    value="{{ prof.agenda_config.domingo.inicio }}">
+                            </div>
+                            <div class="col-2 text-center text-muted fw-bold">até</div>
+                            <div class="col-5 col-md-3">
+                                <input type="time" name="domingo_fim" class="form-control"
+                                    value="{{ prof.agenda_config.domingo.fim }}">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="modal-footer px-0 pb-0 mt-4 border-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar Horários</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if profissional_edit %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var meuModal = new bootstrap.Modal(document.getElementById("modalNovoProfissional"));
+        meuModal.show();
+    });
+</script>
+{% endif %}
+
+<script>
+    function liberarCamposAgenda(profissionalId) {
+        const fieldset = document.getElementById('fieldsetAgenda' + profissionalId);
+        if (fieldset) {
+            fieldset.removeAttribute('disabled');
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const checkboxes = document.querySelectorAll('.check-dia');
+        checkboxes.forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                const linha = this.closest('.dia-linha');
+                const inputsHora = linha.querySelectorAll('input[type="time"]');
+                inputsHora.forEach(function (input) {
+                    input.disabled = !checkbox.checked;
+                    if (!checkbox.checked) {
+                        linha.classList.add('opacity-50');
+                    } else {
+                        linha.classList.remove('opacity-50');
+                    }
+                });
+            });
+            checkbox.dispatchEvent(new Event('change'));
+        });
+    });
+    
+</script>
+
+</div>
+{% endblock %}

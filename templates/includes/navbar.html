@@ -1,0 +1,56 @@
+{% load static %}
+<style>
+  body {
+    background-color: #1a1d20 !important;
+    background-image: linear-gradient(
+      180deg,
+      #212529 0%,
+      #051937 100%
+    ) !important;
+    background-attachment: fixed;
+    background-size: cover;
+  }
+  .bg-body-tertiary {
+    background-color: rgba(27, 30, 33, 0.95) !important;
+  }
+</style>
+
+<div class="bg-body-tertiary p-3 border-end d-flex flex-column" style="width: 250px">
+  <div class="text-center mb-4">
+    <img
+      src="{% static 'img/texto.png'%}"
+      alt="deu errado"
+      class="img-fluid mt-3"
+      style="max-height: 100px"
+    />
+  </div>
+  <hr />
+
+  <ul class="nav flex-column mb-auto">
+    <li class="nav-item mb-2">
+      <a href="{% url 'dashboard_admin' %}" class="nav-link link-body-emphasis">Agendamentos</a>
+    </li>
+
+    {% if perfil == 'admin' or perfil == 'secretario' %}
+    <li class="nav-item mb-2">
+      <a href="{% url 'gerenciar_clientes' %}" class="nav-link link-body-emphasis">Clientes</a>
+    </li>
+    <li class="nav-item mb-2">
+      <a href="{% url 'gerenciar_profissionais' %}" class="nav-link link-body-emphasis">Profissionais</a>
+    </li>
+    {% endif %}
+
+    {% if perfil == 'admin' %}
+    <li class="nav-item mb-2">
+      <a href="{% url 'gerenciar_usuarios' %}" class="nav-link link-body-emphasis">Usuários</a>
+    </li>
+    {% endif %}
+  </ul>
+
+  <hr />
+  <ul class="nav flex-column">
+    <li class="nav-item">
+      <a href="{% url 'login' %}" class="nav-link text-danger">Sair</a>
+    </li>
+  </ul>
+</div>
