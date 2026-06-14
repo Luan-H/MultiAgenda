@@ -12,6 +12,17 @@
   .evento-calendario:hover {
     transform: scale(1.02);
   }
+  .slot-indisponivel {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.03),
+      rgba(255, 255, 255, 0.03) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    cursor: not-allowed;
+  }
 </style>
 
 <div class="flex-grow-1 p-4 overflow-auto d-flex flex-column">
@@ -65,7 +76,7 @@
               <td></td>
 
               {% elif celula.tipo == 'indisponivel' %}
-              <td class="bg-body-secondary bg-opacity-50"></td>
+              <td class="slot-indisponivel" title="Horário Indisponível"></td>
               {% endif %}
 
               {% endfor %}

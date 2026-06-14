@@ -78,11 +78,27 @@ def gerenciar_agendamentos_view(request):
                 'cliente_nome': row[3],
                 'servico_nome': row[4],
                 'servico_duracao': row[5]
-            }
+            }   
+        cursor.execute("""
+            SELECT DISTINCT a.hr_agenda
+            FROM agenda a
+            JOIN profissional p ON a.id_profissional = p.id_profissional
+            WHERE a.dt_agenda = %s AND p.id_empresa = %s AND p.ativo = '1'
+            ORDER BY a.hr_agenda
+        """, [data_atual, id_empresa])
+        
+        linhas_horarios = cursor.fetchall()
+        
+        # Se houver agenda gerada, usa os horários reais. Se não, usa um padrão de segurança.
+        if linhas_horarios:
+            horarios = [row[0].strftime('%H:%M') if hasattr(row[0], 'strftime') else str(row[0])[:5] for row in linhas_horarios]
+        else:
+            horarios = [f"{h:02d}:{m:02d}" for h in range(8, 19) for m in (0, 30)]
+            if horarios[-1] == "18:30": 
+                horarios.pop()
 
-    horarios = [f"{h:02d}:{m:02d}" for h in range(8, 19) for m in (0, 30)]
-    if horarios[-1] == "18:30": 
-        horarios.pop()
+    grade_horarios = []
+    skip_dict = {prof['id']: 0 for prof in profissionais_lista}
 
     grade_horarios = []
     skip_dict = {prof['id']: 0 for prof in profissionais_lista}
