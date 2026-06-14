@@ -2,14 +2,13 @@
 <style>
   body {
     background-color: #1a1d20 !important;
-    background-image: linear-gradient(
-      180deg,
-      #212529 0%,
-      #051937 100%
-    ) !important;
+    background-image: linear-gradient(180deg,
+        #212529 0%,
+        #051937 100%) !important;
     background-attachment: fixed;
     background-size: cover;
   }
+
   .bg-body-tertiary {
     background-color: rgba(27, 30, 33, 0.95) !important;
   }
@@ -17,19 +16,20 @@
 
 <div class="bg-body-tertiary p-3 border-end d-flex flex-column" style="width: 250px">
   <div class="text-center mb-4">
-    <img
-      src="{% static 'img/texto.png'%}"
-      alt="deu errado"
-      class="img-fluid mt-3"
-      style="max-height: 100px"
-    />
+    <img src="{% static 'img/texto.png'%}" alt="Logo MultiAgenda" class="img-fluid mt-3" style="max-height: 100px" />
   </div>
   <hr />
 
   <ul class="nav flex-column mb-auto">
     <li class="nav-item mb-2">
-      <a href="{% url 'dashboard_admin' %}" class="nav-link link-body-emphasis">Agendamentos</a>
+      <a href="{% url 'gerenciar_agendamentos' %}" class="nav-link link-body-emphasis">Agendamentos</a>
     </li>
+
+    {% if perfil == 'admin' or perfil == 'secretario' or perfil == 'profissional' %}
+    <li class="nav-item mb-2">
+      <a href="{% url 'gerenciar_servicos' %}" class="nav-link link-body-emphasis">Serviços</a>
+    </li>
+    {% endif %}
 
     {% if perfil == 'admin' or perfil == 'secretario' %}
     <li class="nav-item mb-2">

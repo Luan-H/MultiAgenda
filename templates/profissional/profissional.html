@@ -126,20 +126,42 @@
                         <input type="text" name="nome" class="form-control"
                             value="{{ profissional_edit.nome|default:'' }}" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">E-mail</label>
-                        <input type="email" name="email" class="form-control"
-                            value="{{ profissional_edit.email|default:'' }}" required>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">E-mail</label>
+                            <input type="email" name="email" class="form-control"
+                                value="{{ profissional_edit.email|default:'' }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Telefone (WhatsApp)</label>
+                            <input type="text" name="telefone" class="form-control" placeholder="(00) 00000-0000"
+                                value="{{ profissional_edit.telefone|default:'' }}">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Telefone (WhatsApp)</label>
-                        <input type="text" name="telefone" class="form-control" placeholder="(00) 00000-0000"
-                            value="{{ profissional_edit.telefone|default:'' }}">
+
+                    <div class="row border-top pt-3 mt-2">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nome de Usuário (Login)</label>
+                            <input type="text" name="login" class="form-control"
+                                value="{{ profissional_edit.login|default:'' }}" required />
+                            <div class="form-text text-body-secondary small">Para o acesso restrito ao sistema.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Senha</label>
+                            <input type="password" name="senha" class="form-control" {% if not profissional_edit %} required {% endif %}
+                                placeholder="{% if profissional_edit %}Deixe em branco para manter{% else %}Digite a senha{% endif %}" />
+                        </div>
                     </div>
-                    <div class="modal-footer px-0 pb-0">
+
+                    <div class="modal-footer px-0 pb-0 mt-2">
                         <a href="{% url 'gerenciar_profissionais' %}" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
-                            {% if profissional_edit %} Salvar Alterações {% else %} Salvar Cadastro {% endif %}
+                            {% if profissional_edit %} 
+                                Salvar Alterações 
+                            {% else %} 
+                                Salvar Cadastro 
+                            {% endif %}
                         </button>
                     </div>
                 </form>
@@ -190,12 +212,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="segunda_inicio" class="form-control"
+                                <input type="time" name="segunda_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.segunda.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="segunda_fim" class="form-control"
+                                <input type="time" name="segunda_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.segunda.fim }}">
                             </div>
                         </div>
@@ -209,12 +231,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="terca_inicio" class="form-control"
+                                <input type="time" name="terca_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.terca.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="terca_fim" class="form-control"
+                                <input type="time" name="terca_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.terca.fim }}">
                             </div>
                         </div>
@@ -228,12 +250,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="quarta_inicio" class="form-control"
+                                <input type="time" name="quarta_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.quarta.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="quarta_fim" class="form-control"
+                                <input type="time" name="quarta_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.quarta.fim }}">
                             </div>
                         </div>
@@ -247,12 +269,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="quinta_inicio" class="form-control"
+                                <input type="time" name="quinta_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.quinta.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="quinta_fim" class="form-control"
+                                <input type="time" name="quinta_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.quinta.fim }}">
                             </div>
                         </div>
@@ -266,12 +288,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="sexta_inicio" class="form-control"
+                                <input type="time" name="sexta_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.sexta.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="sexta_fim" class="form-control"
+                                <input type="time" name="sexta_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.sexta.fim }}">
                             </div>
                         </div>
@@ -285,12 +307,12 @@
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="sabado_inicio" class="form-control"
+                                <input type="time" name="sabado_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.sabado.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="sabado_fim" class="form-control"
+                                <input type="time" name="sabado_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.sabado.fim }}">
                             </div>
                         </div>
@@ -299,18 +321,17 @@
                             <div class="col-12 col-md-4 mb-2 mb-md-0">
                                 <div class="form-check form-switch fs-5">
                                     <input class="form-check-input check-dia" type="checkbox" name="domingo_ativo"
-                                        id="domingo_{{ prof.id }}" {% if prof.agenda_config.domingo.ativo %}checked
-                                        {% endif %}>
+                                        id="domingo_{{ prof.id }}" {% if prof.agenda_config.domingo.ativo %}checked {% endif %}>
                                     <label class="form-check-label ms-2" for="domingo_{{ prof.id }}">Domingo</label>
                                 </div>
                             </div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="domingo_inicio" class="form-control"
+                                <input type="time" name="domingo_inicio" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.domingo.inicio }}">
                             </div>
                             <div class="col-2 text-center text-muted fw-bold">até</div>
                             <div class="col-5 col-md-3">
-                                <input type="time" name="domingo_fim" class="form-control"
+                                <input type="time" name="domingo_fim" class="form-control campo-hora"
                                     value="{{ prof.agenda_config.domingo.fim }}">
                             </div>
                         </div>
@@ -349,7 +370,7 @@
         checkboxes.forEach(function (checkbox) {
             checkbox.addEventListener('change', function () {
                 const linha = this.closest('.dia-linha');
-                const inputsHora = linha.querySelectorAll('input[type="time"]');
+                const inputsHora = linha.querySelectorAll('.campo-hora');
                 inputsHora.forEach(function (input) {
                     input.disabled = !checkbox.checked;
                     if (!checkbox.checked) {
@@ -362,7 +383,7 @@
             checkbox.dispatchEvent(new Event('change'));
         });
     });
-    
+
 </script>
 
 </div>

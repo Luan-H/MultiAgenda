@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<style>
+  .evento-calendario {
+    font-size: 0.85rem;
+    border-left: 4px solid rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .evento-calendario:hover {
+    transform: scale(1.02);
+  }
+</style>
+
+<div class="flex-grow-1 p-4 overflow-auto d-flex flex-column">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Agenda do Dia</h3>
+
+    <div class="d-flex align-items-center gap-3">
+      <a href="?data={{ data_anterior }}" class="btn btn-outline-secondary btn-sm">&lt;</a>
+      <h5 class="mb-0">{{ data_atual_formatada }}</h5>
+      <a href="?data={{ data_proxima }}" class="btn btn-outline-secondary btn-sm">&gt;</a>
+      <a href="{% url 'gerenciar_agendamentos' %}" class="btn btn-secondary btn-sm ms-2">Hoje</a>
+    </div>
+
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoAgendamento">
+      + Novo Agendamento
+    </button>
+  </div>
+
+  <div class="card shadow-sm flex-grow-1 overflow-hidden">
+    <div class="card-body p-0 d-flex flex-column">
+      <div class="table-responsive flex-grow-1" style="max-height: calc(100vh - 160px)">
+        <table class="table table-bordered mb-0" style="table-layout: fixed; min-width: 800px">
+
+          <thead class="table-dark sticky-top z-1">
+            <tr class="text-center">
+              <th style="width: 80px">Hora</th>
+              {% for prof in profissionais %}
+              <th>{{ prof.nome }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for linha in grade_horarios %}
+            <tr>
+              <td class="text-center text-body-secondary small align-middle">{{ linha.hora }}</td>
+
+              {% for celula in linha.celulas %}
+
+              {% if celula.tipo == 'evento' %}
+              <td rowspan="{{ celula.rowspan }}" class="p-0 position-relative" style="height: 75px;">
+                <div
+                  class="bg-primary text-white rounded p-2 evento-calendario position-absolute top-0 start-0 end-0 bottom-0 m-1 d-flex flex-column overflow-hidden">
+                  <strong>{{ celula.cliente_nome }}</strong>
+                  <span class="text-white-50">{{ celula.servico_nome }}</span>
+                </div>
+              </td>
+
+              {% elif celula.tipo == 'vazio' %}
+              <td></td>
+
+              {% elif celula.tipo == 'indisponivel' %}
+              <td class="bg-body-secondary bg-opacity-50"></td>
+              {% endif %}
+
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalNovoAgendamento" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Novo Agendamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+
+        <form method="POST" action="{% url 'salvar_agendamento' %}">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label">Cliente</label>
+            <select name="id_cliente" class="form-select" required>
+              <option value="" disabled selected>Busque o cliente...</option>
+              {% for cliente in clientes_lista %}
+              <option value="{{ cliente.id }}">{{ cliente.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Profissional</label>
+              <select name="id_profissional" class="form-select" required>
+                <option value="" disabled selected>Selecione...</option>
+                {% for prof in profissionais %}
+                <option value="{{ prof.id }}">{{ prof.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Serviço</label>
+              <select name="id_servico" class="form-select" required>
+                <option value="" disabled selected>Selecione...</option>
+                {% for servico in servicos_lista %}
+                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao_minutos }} min)</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Data</label>
+              <input type="text" name="data_agenda" class="form-control campo-data" value="{{ data_atual_iso }}"
+                required />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Horário de Início</label>
+              <input type="time" name="hora_agenda" class="form-control" step="1800" required />
+            </div>
+          </div>
+
+          <div class="modal-footer px-0 pb-0">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar Agendamento</button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

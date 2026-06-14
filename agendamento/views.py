@@ -1,3 +1,185 @@
-from django.shortcuts import render
+import datetime
+from datetime import timedelta
+from django.shortcuts import render, redirect
+from django.db import connection
 
-# Create your views here.
+# ==========================================================
+# VIEW 1: CARREGAR A TELA E A MATRIZ DE HORÁRIOS
+# ==========================================================
+def gerenciar_agendamentos_view(request):
+    login_sessao = request.session.get('usuario_login')
+    perfil_sessao = request.session.get('usuario_perfil')
+    
+    if not login_sessao:
+        return redirect('login')
+    data_str = request.GET.get('data')
+    if data_str:
+        try:
+            data_atual = datetime.datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            data_atual = datetime.date.today()
+    else:
+        data_atual = datetime.date.today()
+        
+    data_anterior = data_atual - timedelta(days=1)
+    data_proxima = data_atual + timedelta(days=1)
+    
+    meses = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    dias_semana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+    data_atual_formatada = f"{dias_semana[data_atual.weekday()]}, {data_atual.day:02d} {meses[data_atual.month]} {data_atual.year}"
+
+    with connection.cursor() as cursor:
+        # Busca empresa do admin ou do profissional logado
+        cursor.execute("""
+            SELECT id_empresa FROM usuario WHERE login = %s
+            UNION
+            SELECT id_empresa FROM profissional WHERE login = %s
+        """, [login_sessao, login_sessao])
+        
+        row_empresa = cursor.fetchone()
+        if not row_empresa:
+            return redirect('login')
+        id_empresa = row_empresa[0]
+
+        # --- BUSCA DE DADOS PARA O MODAL ---
+        cursor.execute("SELECT id_cliente, nome FROM cliente WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
+        clientes_lista = [{'id': row[0], 'nome': row[1]} for row in cursor.fetchall()]
+
+        cursor.execute("SELECT id_profissional, nome FROM profissional WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
+        profissionais_lista = [{'id': row[0], 'nome': row[1]} for row in cursor.fetchall()]
+
+        cursor.execute("SELECT id_servico, nome, duracao_em_min FROM servico WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
+        servicos_lista = [{'id': row[0], 'nome': row[1], 'duracao_minutos': row[2]} for row in cursor.fetchall()]
+
+        # --- CONSTRUÇÃO DA MATRIZ DO CALENDÁRIO ---
+        query_agenda = """
+            SELECT 
+                a.hr_agenda,
+                a.id_profissional,
+                a.id_agendamento,
+                c.nome as cliente_nome,
+                s.nome as servico_nome,
+                s.duracao_em_min as servico_duracao
+            FROM agenda a
+            JOIN profissional p ON a.id_profissional = p.id_profissional
+            LEFT JOIN agendamento ag ON a.id_agendamento = ag.id_agendamento
+            LEFT JOIN cliente c ON ag.id_cliente = c.id_cliente
+            LEFT JOIN servico s ON ag.id_servico = s.id_servico
+            WHERE a.dt_agenda = %s AND p.id_empresa = %s AND p.ativo = '1'
+        """
+        cursor.execute(query_agenda, [data_atual, id_empresa])
+        
+        slots_dict = {}
+        for row in cursor.fetchall():
+            hr_str = row[0].strftime('%H:%M') if hasattr(row[0], 'strftime') else str(row[0])[:5]
+            prof_id = row[1]
+            slots_dict[(hr_str, prof_id)] = {
+                'id_agendamento': row[2],
+                'cliente_nome': row[3],
+                'servico_nome': row[4],
+                'servico_duracao': row[5]
+            }
+
+    horarios = [f"{h:02d}:{m:02d}" for h in range(8, 19) for m in (0, 30)]
+    if horarios[-1] == "18:30": 
+        horarios.pop()
+
+    grade_horarios = []
+    skip_dict = {prof['id']: 0 for prof in profissionais_lista}
+
+    for hr in horarios:
+        linha = {'hora': hr, 'celulas': []}
+        for prof in profissionais_lista:
+            prof_id = prof['id']
+            
+            if skip_dict[prof_id] > 0:
+                linha['celulas'].append({'tipo': 'ignorar'})
+                skip_dict[prof_id] -= 1
+                continue
+            
+            slot = slots_dict.get((hr, prof_id))
+            
+            if not slot:
+                linha['celulas'].append({'tipo': 'indisponivel'})
+            elif not slot['id_agendamento']:
+                linha['celulas'].append({'tipo': 'vazio'})
+            else:
+                duracao = slot['servico_duracao'] or 30
+                rowspan = max(1, int(duracao) // 30)
+                
+                linha['celulas'].append({
+                    'tipo': 'evento',
+                    'rowspan': rowspan,
+                    'cliente_nome': slot['cliente_nome'],
+                    'servico_nome': slot['servico_nome']
+                })
+                skip_dict[prof_id] = rowspan - 1
+                
+        grade_horarios.append(linha)
+
+    contexto = {
+        'perfil': perfil_sessao,
+        'data_atual_iso': data_atual.strftime('%Y-%m-%d'),
+        'data_atual_formatada': data_atual_formatada,
+        'data_anterior': data_anterior.strftime('%Y-%m-%d'),
+        'data_proxima': data_proxima.strftime('%Y-%m-%d'),
+        'profissionais': profissionais_lista,
+        'clientes_lista': clientes_lista,
+        'servicos_lista': servicos_lista,
+        'grade_horarios': grade_horarios
+    }
+
+    return render(request, 'agendamento/agendamentos.html', contexto)
+
+
+# ==========================================================
+# VIEW 2: SALVAR O AGENDAMENTO
+# ==========================================================
+def salvar_agendamento_view(request):
+    if request.method == "POST":
+        id_cliente = request.POST.get('id_cliente')
+        id_profissional = request.POST.get('id_profissional')
+        id_servico = request.POST.get('id_servico')
+        data_agenda = request.POST.get('data_agenda')
+        hora_agenda = request.POST.get('hora_agenda')
+        
+        if hora_agenda:
+            hora_agenda = hora_agenda[:5]
+        
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT duracao_em_min FROM servico WHERE id_servico = %s", [id_servico])
+            resultado_duracao = cursor.fetchone()
+            if not resultado_duracao:
+                return redirect('gerenciar_agendamentos')
+            duracao = int(resultado_duracao[0])
+            blocos_necessarios = max(1, duracao // 30)
+            query_busca = """
+                SELECT id_agenda, id_agendamento FROM agenda 
+                WHERE dt_agenda = %s AND id_profissional = %s AND hr_agenda >= %s
+                ORDER BY hr_agenda ASC LIMIT %s
+            """
+            cursor.execute(query_busca, [data_agenda, id_profissional, hora_agenda, blocos_necessarios])
+            slots = cursor.fetchall()
+            
+            if len(slots) == blocos_necessarios and all(slot[1] is None for slot in slots):
+                
+                cursor.execute("""
+                    INSERT INTO agendamento (status, id_servico, id_cliente) 
+                    VALUES ('A', %s, %s) RETURNING id_agendamento
+                """, [id_servico, id_cliente])
+                
+                novo_id_agendamento = cursor.fetchone()[0]
+                
+                ids_agenda = tuple(slot[0] for slot in slots)
+                
+                cursor.execute("""
+                    UPDATE agenda SET id_agendamento = %s 
+                    WHERE id_agenda IN %s
+                """, [novo_id_agendamento, ids_agenda])
+                
+            else:
+                print(f"ATENÇÃO: Tentativa falhou. Precisava de {blocos_necessarios} blocos livres, encontrou {len([s for s in slots if s[1] is None])}.")
+            
+        return redirect('gerenciar_agendamentos')
+    
+    return redirect('dashboard_admin')

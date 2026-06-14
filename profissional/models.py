@@ -6,6 +6,8 @@ class Profissional(models.Model):
     nome = models.CharField(max_length=100)
     telefone = models.CharField(max_length=100)
     email = models.CharField(max_length=100)
+    login = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    senha = models.CharField(max_length=255, null=True, blank=True)
     ativo = models.CharField(max_length=1, default='1')
     id_empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, db_column='id_empresa')
 

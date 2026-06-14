@@ -2,19 +2,22 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db import connection
 from django.contrib.auth.hashers import check_password, make_password
 
-
 def buscar_usuario_para_login(login_digitado):
     with connection.cursor() as cursor:
         query = """
             SELECT login, senha, 'cliente' AS perfil 
             FROM cliente 
-            WHERE login = %s
+            WHERE login = %s AND ativo = '1'
+            UNION
+            SELECT login, senha, 'profissional' AS perfil 
+            FROM profissional 
+            WHERE login = %s AND ativo = '1'
             UNION
             SELECT login, senha, cargo AS perfil 
             FROM usuario 
-            WHERE login = %s;
+            WHERE login = %s AND ativo = '1';
         """
-        cursor.execute(query, [login_digitado, login_digitado])
+        cursor.execute(query, [login_digitado, login_digitado, login_digitado])
         return cursor.fetchone()
 
 
@@ -25,19 +28,24 @@ def login_view(request):
         login_form = request.POST.get("login")
         senha_form = request.POST.get("senha")
         dados_usuario = buscar_usuario_para_login(login_form)
+        
         if dados_usuario:
             login_db, senha_db, perfil = dados_usuario
             if check_password(senha_form, senha_db):
                 request.session["usuario_login"] = login_db
                 request.session["usuario_perfil"] = perfil
+                
                 if perfil == "cliente":
                     return redirect("agenda_cliente")
+                elif perfil == "profissional":
+                    return redirect("gerenciar_agendamentos")
                 else:
                     return redirect("dashboard_admin")
             else:
                 contexto["erro"] = "Senha incorreta."
         else:
-            contexto["erro"] = "Usuário não encontrado."
+            contexto["erro"] = "Usuario nao encontrado."
+            
     return render(request, "login.html", contexto)
 
 
@@ -46,9 +54,11 @@ def buscar_nome_pelo_login(login):
         query = """
             SELECT nome FROM cliente WHERE login = %s
             UNION
+            SELECT nome FROM profissional WHERE login = %s
+            UNION
             SELECT nome FROM usuario WHERE login = %s;
         """
-        cursor.execute(query, [login, login])
+        cursor.execute(query, [login, login, login])
         resultado = cursor.fetchone()
         return resultado[0] if resultado else "Utilizador"
 

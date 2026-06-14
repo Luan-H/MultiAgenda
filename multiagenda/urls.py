@@ -15,6 +15,10 @@ from profissional.views import (
 
 from cliente.views import gerenciar_clientes_view, excluir_cliente_view
 
+from agendamento.views import gerenciar_agendamentos_view, salvar_agendamento_view
+
+from servico.views import gerenciar_servicos_view, excluir_servico_view
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', login_view, name='login'),
@@ -29,4 +33,9 @@ urlpatterns = [
     path('clientes/', gerenciar_clientes_view, name='gerenciar_clientes'),
     path('clientes/editar/<int:id_edit>/', gerenciar_clientes_view, name='preparar_edicao_cliente'),
     path('clientes/excluir/<int:id_cliente>/', excluir_cliente_view, name='excluir_cliente'),
+    path('agendamentos/', gerenciar_agendamentos_view, name='gerenciar_agendamentos'),
+    path('agendamentos/salvar/', salvar_agendamento_view, name='salvar_agendamento'),
+    path('servicos/', gerenciar_servicos_view, name='gerenciar_servicos'),
+    path('servicos/editar/<int:id_edit>/', gerenciar_servicos_view, name='preparar_edicao_servico'),
+    path('servicos/excluir/<int:id_servico>/', excluir_servico_view, name='excluir_servico'),
 ]
