@@ -67,12 +67,10 @@ def dashboard_admin_view(request):
     login_sessao = request.session.get("usuario_login")
     perfil_sessao = request.session.get("usuario_perfil")
 
-    if not login_sessao or perfil_sessao != 'admin':
+    if not login_sessao or (perfil_sessao != 'admin' and perfil_sessao != 'secretario'):
         return redirect("login")
 
     nome = buscar_nome_pelo_login(login_sessao)
-    
-    # Coletando os indicadores do Dashboard
     indicadores = {
         'total_clientes': 0,
         'total_profissionais': 0,
