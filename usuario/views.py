@@ -67,12 +67,87 @@ def dashboard_admin_view(request):
     login_sessao = request.session.get("usuario_login")
     perfil_sessao = request.session.get("usuario_perfil")
 
-    if not login_sessao:
+    if not login_sessao or perfil_sessao != 'admin':
         return redirect("login")
 
     nome = buscar_nome_pelo_login(login_sessao)
+    
+    # Coletando os indicadores do Dashboard
+    indicadores = {
+        'total_clientes': 0,
+        'total_profissionais': 0,
+        'agendamentos_hoje': 0,
+        'servicos_ativos': 0
+    }
 
-    contexto = {"nome_usuario": nome, "perfil": perfil_sessao}
+    import datetime
+    hoje = datetime.date.today()
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id_empresa FROM usuario WHERE login = %s", [login_sessao])
+        row_empresa = cursor.fetchone()
+        
+        if row_empresa:
+            id_empresa = row_empresa[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM cliente WHERE id_empresa = %s AND ativo = '1'", [id_empresa])
+            indicadores['total_clientes'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM profissional WHERE id_empresa = %s AND ativo = '1'", [id_empresa])
+            indicadores['total_profissionais'] = cursor.fetchone()[0]
+            
+            cursor.execute("""
+                SELECT COUNT(*) FROM agendamento ag
+                JOIN agenda a ON ag.id_agendamento = a.id_agendamento
+                JOIN profissional p ON a.id_profissional = p.id_profissional
+                WHERE p.id_empresa = %s AND a.dt_agenda = %s
+            """, [id_empresa, hoje])
+            cursor.execute("""
+                SELECT COUNT(DISTINCT a.id_agendamento) 
+                FROM agenda a
+                JOIN profissional p ON a.id_profissional = p.id_profissional
+                WHERE p.id_empresa = %s AND a.dt_agenda = %s AND a.id_agendamento IS NOT NULL
+            """, [id_empresa, hoje])
+            indicadores['agendamentos_hoje'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM servico WHERE id_empresa = %s AND ativo = '1'", [id_empresa])
+            indicadores['servicos_ativos'] = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT 
+                    MIN(a.hr_agenda) as hora,
+                    c.nome as cliente_nome,
+                    p.nome as profissional_nome,
+                    s.nome as servico_nome
+                FROM agenda a
+                JOIN agendamento ag ON a.id_agendamento = ag.id_agendamento
+                JOIN cliente c ON ag.id_cliente = c.id_cliente
+                JOIN profissional p ON a.id_profissional = p.id_profissional
+                JOIN servico s ON ag.id_servico = s.id_servico
+                WHERE p.id_empresa = %s AND a.dt_agenda = %s AND a.id_agendamento IS NOT NULL
+                GROUP BY a.id_agendamento, c.nome, p.nome, s.nome
+                ORDER BY hora ASC
+                LIMIT 10 """, [id_empresa, hoje])
+            
+            colunas = ['hora', 'cliente_nome', 'profissional_nome', 'servico_nome']
+            proximos_agendamentos = []
+            for row in cursor.fetchall():
+                hora_formatada = row[0].strftime('%H:%M') if hasattr(row[0], 'strftime') else str(row[0])[:5]
+                proximos_agendamentos.append({
+                    'hora': hora_formatada,
+                    'cliente_nome': row[1],
+                    'profissional_nome': row[2],
+                    'servico_nome': row[3]
+                })
+        else:
+            proximos_agendamentos = []
+
+    contexto = {
+        "nome_usuario": nome, 
+        "perfil": perfil_sessao,
+        "indicadores": indicadores,
+        "proximos_agendamentos": proximos_agendamentos # Variável adicionada aqui!
+    }
 
     return render(request, "dashboard/dashboard.html", contexto)
 

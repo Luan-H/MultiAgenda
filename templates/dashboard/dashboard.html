@@ -8,45 +8,66 @@
   </div>
 
   <div class="row">
-    <div class="col-md-4 mb-3">
-      <div class="card shadow-sm p-3">
-        <h6 class="card-subtitle mb-2 text-body-secondary">
-          Agendamentos Hoje
-        </h6>
-        <h2 class="card-title mb-0">0</h2>
+    <div class="col-md-6 col-lg-3 mb-3">
+      <div class="card shadow-sm p-3 border-start border-primary border-4 h-100">
+        <h6 class="card-subtitle mb-2 text-body-secondary">Agendamentos Hoje</h6>
+        <h2 class="card-title mb-0 text-primary">{{ indicadores.agendamentos_hoje }}</h2>
       </div>
     </div>
 
-    <div class="col-md-4 mb-3">
-      <div class="card shadow-sm p-3">
-        <h6 class="card-subtitle mb-2 text-body-secondary">Clientes</h6>
-        <h2 class="card-title mb-0">0</h2>
+    <div class="col-md-6 col-lg-3 mb-3">
+      <div class="card shadow-sm p-3 border-start border-success border-4 h-100">
+        <h6 class="card-subtitle mb-2 text-body-secondary">Clientes Ativos</h6>
+        <h2 class="card-title mb-0 text-success">{{ indicadores.total_clientes }}</h2>
       </div>
     </div>
 
-    <div class="col-md-4 mb-3">
-      <div class="card shadow-sm p-3">
+    <div class="col-md-6 col-lg-3 mb-3">
+      <div class="card shadow-sm p-3 border-start border-info border-4 h-100">
         <h6 class="card-subtitle mb-2 text-body-secondary">Profissionais</h6>
-        <h2 class="card-title mb-0">0</h2>
+        <h2 class="card-title mb-0 text-info">{{ indicadores.total_profissionais }}</h2>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3 mb-3">
+      <div class="card shadow-sm p-3 border-start border-warning border-4 h-100">
+        <h6 class="card-subtitle mb-2 text-body-secondary">Serviços Ativos</h6>
+        <h2 class="card-title mb-0 text-warning">{{ indicadores.servicos_ativos }}</h2>
       </div>
     </div>
   </div>
 
-  <div class="card mt-4 shadow-sm">
-    <div class="card-body">
-      <h5 class="mb-3">Próximos Agendamentos</h5>
+  <div class="card mt-4 shadow-sm border-0">
+    <div class="card-body p-0">
+      <div class="p-4 border-bottom">
+        <h5 class="mb-0">Próximos Agendamentos (Hoje)</h5>
+      </div>
 
       <div class="table-responsive">
-        <table class="table table-striped align-middle">
-          <thead>
+        <table class="table table-striped align-middle mb-0">
+          <thead class="table-dark">
             <tr>
+              <th class="ps-4">Hora</th>
               <th>Cliente</th>
               <th>Profissional</th>
-              <th>Data</th>
-              <th>Hora</th>
+              <th>Serviço</th>
             </tr>
           </thead>
           <tbody>
+            {% for agendamento in proximos_agendamentos %}
+            <tr>
+              <td class="ps-4 fw-bold text-primary">{{ agendamento.hora }}</td>
+              <td>{{ agendamento.cliente_nome }}</td>
+              <td>{{ agendamento.profissional_nome }}</td>
+              <td>{{ agendamento.servico_nome }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-5">
+                Nenhum agendamento marcado para o restante do dia.
+              </td>
+            </tr>
+            {% endfor %}
           </tbody>
         </table>
       </div>

@@ -104,10 +104,12 @@
 
           <div class="mb-3">
             <label class="form-label">Cliente</label>
-            <select name="id_cliente" class="form-select" required>
-              <option value="" disabled selected>Busque o cliente...</option>
+            <select name="id_cliente" class="form-select bg-body-secondary" required {% if perfil == 'cliente' %}style="pointer-events: none;" tabindex="-1"{% endif %}>
+              {% if perfil != 'cliente' %}
+                <option value="" disabled selected>Busque o cliente...</option>
+              {% endif %}
               {% for cliente in clientes_lista %}
-              <option value="{{ cliente.id }}">{{ cliente.nome }}</option>
+                <option value="{{ cliente.id }}" {% if perfil == 'cliente' %}selected{% endif %}>{{ cliente.nome }}</option>
               {% endfor %}
             </select>
           </div>

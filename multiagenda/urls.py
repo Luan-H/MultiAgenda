@@ -35,6 +35,7 @@ urlpatterns = [
     path('clientes/excluir/<int:id_cliente>/', excluir_cliente_view, name='excluir_cliente'),
     path('agendamentos/', gerenciar_agendamentos_view, name='gerenciar_agendamentos'),
     path('agendamentos/salvar/', salvar_agendamento_view, name='salvar_agendamento'),
+    path('minha-agenda/', gerenciar_agendamentos_view, name='agenda_cliente'),
     path('servicos/', gerenciar_servicos_view, name='gerenciar_servicos'),
     path('servicos/editar/<int:id_edit>/', gerenciar_servicos_view, name='preparar_edicao_servico'),
     path('servicos/excluir/<int:id_servico>/', excluir_servico_view, name='excluir_servico'),

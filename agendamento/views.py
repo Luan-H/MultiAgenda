@@ -12,6 +12,25 @@ def gerenciar_agendamentos_view(request):
     
     if not login_sessao:
         return redirect('login')
+    if perfil_sessao not in ['admin', 'secretario', 'profissional', 'cliente']:
+        return redirect('login')
+        
+    with connection.cursor() as cursor:
+        # Busca empresa de forma unificada para qualquer perfil conectado
+        cursor.execute("""
+            SELECT id_empresa FROM usuario WHERE login = %s
+            UNION
+            SELECT id_empresa FROM profissional WHERE login = %s
+            UNION
+            SELECT id_empresa FROM cliente WHERE login = %s
+        """, [login_sessao, login_sessao, login_sessao])
+        
+        row_empresa = cursor.fetchone()
+        if not row_empresa:
+            return redirect('login')
+            
+        id_empresa = row_empresa[0]
+        
     data_str = request.GET.get('data')
     if data_str:
         try:
@@ -29,20 +48,13 @@ def gerenciar_agendamentos_view(request):
     data_atual_formatada = f"{dias_semana[data_atual.weekday()]}, {data_atual.day:02d} {meses[data_atual.month]} {data_atual.year}"
 
     with connection.cursor() as cursor:
-        # Busca empresa do admin ou do profissional logado
-        cursor.execute("""
-            SELECT id_empresa FROM usuario WHERE login = %s
-            UNION
-            SELECT id_empresa FROM profissional WHERE login = %s
-        """, [login_sessao, login_sessao])
-        
-        row_empresa = cursor.fetchone()
-        if not row_empresa:
-            return redirect('login')
-        id_empresa = row_empresa[0]
+        # O segundo bloco de verificação redundante da empresa foi removido daqui
 
-        # --- BUSCA DE DADOS PARA O MODAL ---
-        cursor.execute("SELECT id_cliente, nome FROM cliente WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
+        # Filtro inteligente para a listagem do dropdown de clientes
+        if perfil_sessao == 'cliente':
+            cursor.execute("SELECT id_cliente, nome FROM cliente WHERE login = %s AND ativo = '1'", [login_sessao])
+        else:
+            cursor.execute("SELECT id_cliente, nome FROM cliente WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
         clientes_lista = [{'id': row[0], 'nome': row[1]} for row in cursor.fetchall()]
 
         cursor.execute("SELECT id_profissional, nome FROM profissional WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
@@ -51,7 +63,6 @@ def gerenciar_agendamentos_view(request):
         cursor.execute("SELECT id_servico, nome, duracao_em_min FROM servico WHERE id_empresa = %s AND ativo = '1' ORDER BY nome", [id_empresa])
         servicos_lista = [{'id': row[0], 'nome': row[1], 'duracao_minutos': row[2]} for row in cursor.fetchall()]
 
-        # --- CONSTRUÇÃO DA MATRIZ DO CALENDÁRIO ---
         query_agenda = """
             SELECT 
                 a.hr_agenda,
@@ -79,6 +90,7 @@ def gerenciar_agendamentos_view(request):
                 'servico_nome': row[4],
                 'servico_duracao': row[5]
             }   
+            
         cursor.execute("""
             SELECT DISTINCT a.hr_agenda
             FROM agenda a
@@ -89,16 +101,12 @@ def gerenciar_agendamentos_view(request):
         
         linhas_horarios = cursor.fetchall()
         
-        # Se houver agenda gerada, usa os horários reais. Se não, usa um padrão de segurança.
         if linhas_horarios:
             horarios = [row[0].strftime('%H:%M') if hasattr(row[0], 'strftime') else str(row[0])[:5] for row in linhas_horarios]
         else:
             horarios = [f"{h:02d}:{m:02d}" for h in range(8, 19) for m in (0, 30)]
             if horarios[-1] == "18:30": 
                 horarios.pop()
-
-    grade_horarios = []
-    skip_dict = {prof['id']: 0 for prof in profissionais_lista}
 
     grade_horarios = []
     skip_dict = {prof['id']: 0 for prof in profissionais_lista}
@@ -153,12 +161,21 @@ def gerenciar_agendamentos_view(request):
 # ==========================================================
 def salvar_agendamento_view(request):
     if request.method == "POST":
-        id_cliente = request.POST.get('id_cliente')
         id_profissional = request.POST.get('id_profissional')
         id_servico = request.POST.get('id_servico')
         data_agenda = request.POST.get('data_agenda')
         hora_agenda = request.POST.get('hora_agenda')
         
+        login_sessao = request.session.get('usuario_login')
+        perfil_sessao = request.session.get('usuario_perfil')
+        
+        with connection.cursor() as cursor:
+            if perfil_sessao == 'cliente':
+                cursor.execute("SELECT id_cliente FROM cliente WHERE login = %s", [login_sessao])
+                id_cliente = cursor.fetchone()[0]
+            else:
+                id_cliente = request.POST.get('id_cliente')
+                
         if hora_agenda:
             hora_agenda = hora_agenda[:5]
         
@@ -194,7 +211,7 @@ def salvar_agendamento_view(request):
                 """, [novo_id_agendamento, ids_agenda])
                 
             else:
-                print(f"ATENÇÃO: Tentativa falhou. Precisava de {blocos_necessarios} blocos livres, encontrou {len([s for s in slots if s[1] is None])}.")
+                print(f"ATTENCAO: Tentativa falhou. Precisava de {blocos_necessarios} blocos livres, encontrou {len([s for s in slots if s[1] is None])}.")
             
         return redirect('gerenciar_agendamentos')
     
