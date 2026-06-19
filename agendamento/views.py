@@ -21,12 +21,17 @@ def gerenciar_agendamentos_view(request):
 
     if perfil_sessao not in ["admin", "secretario", "profissional", "cliente"]:
         return redirect("login")
+        
+    # ==========================================================
+    # CAPTURA DE MENSAGENS DE ERRO
+    # ==========================================================
+    # Puxa o erro da sessão (se existir) e limpa ele logo em seguida (pop)
+    erro_agendamento = request.session.pop("erro_agendamento", None)
 
     # ==========================================================
     # IDENTIFICAÇÃO DA EMPRESA DO USUÁRIO
     # ==========================================================
     with connection.cursor() as cursor:
-        # Busca a empresa vinculada ao login, independente do tipo de usuário
         cursor.execute(
             """
             SELECT id_empresa FROM usuario WHERE login = %s
@@ -61,22 +66,7 @@ def gerenciar_agendamentos_view(request):
     data_anterior = data_atual - timedelta(days=1)
     data_proxima = data_atual + timedelta(days=1)
 
-    # Formatação amigável da data para exibição na tela
-    meses = [
-        "",
-        "Jan",
-        "Fev",
-        "Mar",
-        "Abr",
-        "Mai",
-        "Jun",
-        "Jul",
-        "Ago",
-        "Set",
-        "Out",
-        "Nov",
-        "Dez",
-    ]
+    meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
     dias_semana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
     data_atual_formatada = (
         f"{dias_semana[data_atual.weekday()]}, "
@@ -89,8 +79,6 @@ def gerenciar_agendamentos_view(request):
         # ==========================================================
         # CARREGAMENTO DOS DADOS NECESSÁRIOS PARA A TELA
         # ==========================================================
-        
-        # Cliente visualiza apenas seus próprios dados
         if perfil_sessao == "cliente":
             cursor.execute(
                 "SELECT id_cliente, nome FROM cliente WHERE login = %s AND ativo = '1'",
@@ -103,7 +91,6 @@ def gerenciar_agendamentos_view(request):
             )
         clientes_lista = [{"id": row[0], "nome": row[1]} for row in cursor.fetchall()]
         
-        # Lista de profissionais disponíveis
         cursor.execute(
             """
             SELECT id_profissional, nome
@@ -118,7 +105,6 @@ def gerenciar_agendamentos_view(request):
             {"id": row[0], "nome": row[1]} for row in cursor.fetchall()
         ]
 
-        # Lista de serviços disponíveis para agendamento
         cursor.execute(
             """
             SELECT id_servico, nome, duracao_em_min
@@ -156,7 +142,6 @@ def gerenciar_agendamentos_view(request):
         """
         cursor.execute(query_agenda, [data_atual, id_empresa])
 
-        # Organiza os horários em um dicionário para facilitar consultas
         slots_dict = {}
 
         for row in cursor.fetchall():
@@ -172,7 +157,7 @@ def gerenciar_agendamentos_view(request):
                 "servico_nome": row[4],
                 "servico_duracao": row[5],
             }
-        # Recupera os horários disponíveis do dia
+            
         cursor.execute(
             """
             SELECT DISTINCT a.hr_agenda
@@ -187,7 +172,6 @@ def gerenciar_agendamentos_view(request):
         )
         linhas_horarios = cursor.fetchall()
 
-        # Caso não existam horários cadastrados, gera uma grade padrão
         if linhas_horarios:
             horarios = [
                 (
@@ -199,7 +183,6 @@ def gerenciar_agendamentos_view(request):
             ]
         else:
             horarios = [f"{h:02d}:{m:02d}" for h in range(8, 19) for m in (0, 30)]
-
             if horarios[-1] == "18:30":
                 horarios.pop()
 
@@ -208,7 +191,6 @@ def gerenciar_agendamentos_view(request):
     # ==========================================================
     grade_horarios = []
 
-    # Controla quantas linhas devem ser ignoradas em serviços longos
     skip_dict = {prof["id"]: 0 for prof in profissionais_lista}
 
     for hr in horarios:
@@ -221,13 +203,10 @@ def gerenciar_agendamentos_view(request):
                 continue
             
             slot = slots_dict.get((hr, prof_id))
-            # Horário indisponível
             if not slot:
                 linha["celulas"].append({"tipo": "indisponivel"})
-            # Horário disponível
             elif not slot["id_agendamento"]:
                 linha["celulas"].append({"tipo": "vazio"})
-            # Horário ocupado por um agendamento
             else:
                 duracao = slot["servico_duracao"] or 30
                 rowspan = max(1, int(duracao) // 30)
@@ -243,7 +222,6 @@ def gerenciar_agendamentos_view(request):
                 skip_dict[prof_id] = rowspan - 1
         grade_horarios.append(linha)
         
-    # Dados enviados para o template HTML
     contexto = {
         "perfil": perfil_sessao,
         "data_atual_iso": data_atual.strftime("%Y-%m-%d"),
@@ -255,6 +233,10 @@ def gerenciar_agendamentos_view(request):
         "servicos_lista": servicos_lista,
         "grade_horarios": grade_horarios,
     }
+    
+    # Injeta a mensagem de erro no contexto se ela existir
+    if erro_agendamento:
+        contexto["erro_agendamento"] = erro_agendamento
 
     return render(request, "agendamento/agendamentos.html", contexto)
 
@@ -263,45 +245,31 @@ def gerenciar_agendamentos_view(request):
 # VIEW 2: SALVAMENTO DE NOVOS AGENDAMENTOS
 # ==========================================================
 def salvar_agendamento_view(request):
-    # Executa apenas quando o formulário é enviado
     if request.method == "POST":
         
-        # ==========================================================
-        # VALIDAÇÃO DA SESSÃO E SEGURANÇA
-        # ==========================================================
         login_sessao = request.session.get("usuario_login")
         perfil_sessao = request.session.get("usuario_perfil")
         
-        # Trava: expulsa requisições sem autenticação
         if not login_sessao:
             return redirect("login")
 
-        # Recupera os dados informados no formulário
         id_profissional = request.POST.get("id_profissional")
         id_servico = request.POST.get("id_servico")
         data_agenda = request.POST.get("data_agenda")
         hora_agenda = request.POST.get("hora_agenda")
 
-        # ==========================================================
-        # IDENTIFICAÇÃO DO CLIENTE E REGRAS DE NEGÓCIO
-        # ==========================================================
         with connection.cursor() as cursor:
-            # Clientes utilizam o próprio cadastro
             if perfil_sessao == "cliente":
                 cursor.execute(
                     "SELECT id_cliente FROM cliente WHERE login = %s", [login_sessao]
                 )
                 id_cliente = cursor.fetchone()[0]
-            # Funcionários escolhem o cliente pelo formulário
             else:
                 id_cliente = request.POST.get("id_cliente")
                 
             if hora_agenda:
                 hora_agenda = hora_agenda[:5]
                 
-            # ==========================================================
-            # VALIDAÇÃO DOS HORÁRIOS DISPONÍVEIS
-            # ==========================================================
             cursor.execute(
                 "SELECT duracao_em_min FROM servico WHERE id_servico = %s", [id_servico]
             )
@@ -310,7 +278,6 @@ def salvar_agendamento_view(request):
             if not resultado_duracao:
                 return redirect("gerenciar_agendamentos")
 
-            # Calcula quantos blocos de 30 minutos serão necessários
             duracao = int(resultado_duracao[0])
             blocos_necessarios = max(1, duracao // 30)
 
@@ -330,9 +297,7 @@ def salvar_agendamento_view(request):
             )
             slots = cursor.fetchall()
 
-            # Verifica se todos os horários necessários estão livres
             if len(slots) == blocos_necessarios and all(slot[1] is None for slot in slots):
-                # Cria o registro do agendamento
                 cursor.execute(
                     """
                     INSERT INTO agendamento (status, id_servico, id_cliente)
@@ -343,7 +308,6 @@ def salvar_agendamento_view(request):
                 )
                 novo_id_agendamento = cursor.fetchone()[0]
                 
-                # Vincula o agendamento aos horários reservados
                 ids_agenda = tuple(slot[0] for slot in slots)
 
                 cursor.execute(
@@ -355,9 +319,10 @@ def salvar_agendamento_view(request):
                     [novo_id_agendamento, ids_agenda],
                 )
             else:
-                print(
-                    f"ATTENCAO: Tentativa falhou. "
-                    f"Precisava de {blocos_necessarios} blocos livres."
+                # O erro agora vai para a sessão em vez do CMD
+                request.session["erro_agendamento"] = (
+                    "Não foi possível agendar. O horário selecionado está ocupado ou "
+                    "não possui tempo suficiente para a duração do serviço escolhido."
                 )
 
         return redirect("gerenciar_agendamentos")

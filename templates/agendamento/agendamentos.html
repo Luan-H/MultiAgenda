@@ -42,6 +42,13 @@
     </button>
   </div>
 
+  {% if erro_agendamento %}
+  <div class="alert alert-danger alert-dismissible fade show mb-4 shadow-sm" role="alert">
+    <strong>Atenção!</strong> {{ erro_agendamento }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+{% endif %}
+
   <div class="card shadow-sm flex-grow-1 overflow-hidden">
     <div class="card-body p-0 d-flex flex-column">
       <div class="table-responsive flex-grow-1" style="max-height: calc(100vh - 160px)">
