@@ -78,7 +78,6 @@ def gerenciar_profissionais_view(request, id_edit=None):
     # CADASTRO E EDIÇÃO DE PROFISSIONAIS
     # ==========================================================
     if request.method == "POST":
-
         # Recupera os dados enviados pelo formulário
         nome = request.POST.get("nome")
         email = request.POST.get("email")
@@ -110,7 +109,6 @@ def gerenciar_profissionais_view(request, id_edit=None):
                     """,
                         [nome, email, telefone, login_prof, senha_hash, id_edit],
                     )
-
                 else:
 
                     cursor.execute(
@@ -142,7 +140,6 @@ def gerenciar_profissionais_view(request, id_edit=None):
                     )
     
                     id_empresa = cursor.fetchone()[0]
-    
                     # Cadastra o profissional vinculado à empresa
                     cursor.execute(
                         """
