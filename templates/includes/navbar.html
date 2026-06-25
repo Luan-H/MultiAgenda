@@ -21,6 +21,13 @@
   <hr />
 
   <ul class="nav flex-column mb-auto">
+    
+    {% if perfil == 'admin' or perfil == 'secretario' or perfil == 'profissional' %}
+    <li class="nav-item mb-2">
+      <a href="{% url 'dashboard_admin' %}" class="nav-link link-body-emphasis">Dashboard</a>
+    </li>
+    {% endif %}
+
     <li class="nav-item mb-2">
       <a href="{% url 'gerenciar_agendamentos' %}" class="nav-link link-body-emphasis">Agendamentos</a>
     </li>

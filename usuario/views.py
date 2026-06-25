@@ -328,7 +328,7 @@ def gerenciar_usuarios_view(request, login_edit=None):
                 AND ativo = '1'
                 AND (nome ILIKE %s OR login ILIKE %s)
                 ORDER BY nome
-            """
+            """ 
             param_busca = f"%{termo_busca}%"
             cursor.execute(query_list, [login_sessao, param_busca, param_busca])
         else:
