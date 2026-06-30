@@ -12,8 +12,9 @@ import datetime
 # ==========================================================
 def buscar_usuario_para_login(login_digitado):
     with connection.cursor() as cursor:
-        # Procura o login nas tabelas de clientes,
-        # profissionais e usuários administrativos
+        # Esta query unificada (UNION) busca um usuário ativo em todas as tabelas
+        # que contêm credenciais (cliente, profissional, usuario). Ela retorna
+        # o login, a senha (hash) e o tipo de perfil para o processo de autenticação.
         query = """
             SELECT login, senha, 'cliente' AS perfil
             FROM cliente
@@ -38,6 +39,9 @@ def buscar_usuario_para_login(login_digitado):
 # VALIDAÇÃO DE UNICIDADE DE LOGIN
 # ==========================================================
 def login_ja_existe(login_digitado):
+    # Esta função verifica se um login já está em uso em qualquer uma das
+    # tabelas de usuários do sistema (cliente, profissional, ou usuario).
+    # O UNION combina os resultados para uma verificação única e eficiente.
     with connection.cursor() as cursor:
         query = """
             SELECT 1 FROM cliente WHERE login = %s
@@ -85,6 +89,9 @@ def login_view(request):
 # ==========================================================
 def buscar_nome_pelo_login(login):
     with connection.cursor() as cursor:
+        # Busca o nome do usuário em todas as tabelas de perfis (cliente,
+        # profissional, usuario) usando o login da sessão para encontrar
+        # a correspondência correta.
         query = """
             SELECT nome FROM cliente WHERE login = %s
             UNION
@@ -118,15 +125,20 @@ def dashboard_admin_view(request):
     hoje = datetime.date.today()
 
     with connection.cursor() as cursor:
+        # Identifica a empresa do usuário (admin/secretário) logado para
+        # garantir que os indicadores e dados exibidos sejam da empresa correta.
         cursor.execute(
             "SELECT id_empresa FROM usuario WHERE login = %s", [login_sessao]
         )
         row_empresa = cursor.fetchone()
 
+        # As consultas a seguir são executadas apenas se uma empresa for encontrada
+        # para o usuário logado.
         if row_empresa:
             id_empresa = row_empresa[0]
             
             cursor.execute(
+                # Conta o número total de clientes ativos na empresa.
                 """
                 SELECT COUNT(*)
                 FROM cliente
@@ -139,6 +151,7 @@ def dashboard_admin_view(request):
             
             cursor.execute(
                 """
+                -- Conta o número total de profissionais ativos na empresa.
                 SELECT COUNT(*)
                 FROM profissional
                 WHERE id_empresa = %s
@@ -150,6 +163,9 @@ def dashboard_admin_view(request):
             
             cursor.execute(
                 """
+                -- Conta os agendamentos únicos para o dia de hoje na empresa.
+                -- O JOIN com profissional é para filtrar pela empresa.
+                -- O DISTINCT garante que serviços que ocupam múltiplos slots sejam contados apenas uma vez.
                 SELECT COUNT(DISTINCT a.id_agendamento)
                 FROM agenda a
                 JOIN profissional p
@@ -164,6 +180,7 @@ def dashboard_admin_view(request):
             
             cursor.execute(
                 """
+                -- Conta o número total de serviços ativos na empresa.
                 SELECT COUNT(*)
                 FROM servico
                 WHERE id_empresa = %s
@@ -175,6 +192,10 @@ def dashboard_admin_view(request):
             
             cursor.execute(
                 """
+                -- Busca os próximos 10 agendamentos do dia.
+                -- A query junta as tabelas de agenda, agendamento, cliente, profissional e serviço.
+                -- O MIN(a.hr_agenda) e o GROUP BY garantem que pegamos a hora de início de cada serviço.
+                -- Ordena pelo horário para mostrar os mais próximos primeiro.
                 SELECT
                     MIN(a.hr_agenda) as hora,
                     c.nome as cliente_nome,
@@ -247,6 +268,8 @@ def gerenciar_usuarios_view(request, login_edit=None):
 
     if login_edit:
         with connection.cursor() as cursor:
+            # Busca os dados de um usuário específico para preencher o formulário
+            # de edição.
             cursor.execute(
                 """
                 SELECT nome, login, cargo
@@ -265,6 +288,8 @@ def gerenciar_usuarios_view(request, login_edit=None):
         
         if login_edit:
             with connection.cursor() as cursor:
+                # Atualiza os dados (nome e cargo) de um usuário existente.
+                # O login e a senha não são alterados nesta operação.
                 cursor.execute(
                     """
                     UPDATE usuario
@@ -286,6 +311,8 @@ def gerenciar_usuarios_view(request, login_edit=None):
                 
                 with connection.cursor() as cursor:
                     cursor.execute(
+                        # Busca o id_empresa do administrador que está realizando
+                        # o cadastro para associar o novo usuário à mesma empresa.
                         """
                         SELECT id_empresa
                         FROM usuario
@@ -297,6 +324,7 @@ def gerenciar_usuarios_view(request, login_edit=None):
                     
                     cursor.execute(
                         """
+                        -- Insere o novo usuário (secretário) no banco de dados.
                         INSERT INTO usuario (
                             nome,
                             login,
@@ -318,6 +346,9 @@ def gerenciar_usuarios_view(request, login_edit=None):
 
     with connection.cursor() as cursor:
         if termo_busca:
+            # Se houver um termo de busca, filtra os usuários da empresa por nome
+            # ou login, usando ILIKE para busca case-insensitive. A subconsulta
+            # garante que apenas usuários da mesma empresa do admin sejam listados.
             query_list = """
                 SELECT nome, login, cargo FROM usuario
                 WHERE id_empresa = (
@@ -332,6 +363,8 @@ def gerenciar_usuarios_view(request, login_edit=None):
             param_busca = f"%{termo_busca}%"
             cursor.execute(query_list, [login_sessao, param_busca, param_busca])
         else:
+            # Se não houver busca, lista todos os usuários ativos da empresa do
+            # administrador logado.
             query_list = """
                 SELECT nome, login, cargo FROM usuario
                 WHERE id_empresa = (
@@ -375,6 +408,8 @@ def excluir_usuario_view(request, login_usuario):
         return redirect("gerenciar_usuarios")
         
     with connection.cursor() as cursor:
+        # Realiza uma exclusão lógica (soft delete), marcando o usuário como inativo ('0')
+        # em vez de apagar o registro, para manter a integridade do sistema.
         cursor.execute("""
             UPDATE usuario
             SET ativo = '0'

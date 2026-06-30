@@ -32,6 +32,8 @@ def gerenciar_agendamentos_view(request):
     # IDENTIFICAÇÃO DA EMPRESA DO USUÁRIO
     # ==========================================================
     with connection.cursor() as cursor:
+        # Busca o ID da empresa do usuário logado, consultando as tabelas de
+        # usuário, profissional e cliente, para garantir que a agenda correta seja exibida.
         cursor.execute(
             """
             SELECT id_empresa FROM usuario WHERE login = %s
@@ -80,11 +82,15 @@ def gerenciar_agendamentos_view(request):
         # CARREGAMENTO DOS DADOS NECESSÁRIOS PARA A TELA
         # ==========================================================
         if perfil_sessao == "cliente":
+            # Se o usuário for um cliente, busca apenas os seus próprios dados
+            # para exibição e agendamento.
             cursor.execute(
                 "SELECT id_cliente, nome FROM cliente WHERE login = %s AND ativo = '1'",
                 [login_sessao],
             )
         else:
+            # Para outros perfis (admin, secretário), busca todos os clientes ativos
+            # da empresa para permitir o gerenciamento de seus agendamentos.
             cursor.execute(
                 "SELECT id_cliente, nome FROM cliente WHERE id_empresa = %s AND ativo = '1' ORDER BY nome",
                 [id_empresa],
@@ -92,6 +98,8 @@ def gerenciar_agendamentos_view(request):
         clientes_lista = [{"id": row[0], "nome": row[1]} for row in cursor.fetchall()]
         
         cursor.execute(
+            # Busca todos os profissionais ativos da empresa para montar as colunas
+            # da grade de horários.
             """
             SELECT id_profissional, nome
             FROM profissional
@@ -106,6 +114,8 @@ def gerenciar_agendamentos_view(request):
         ]
 
         cursor.execute(
+            # Carrega a lista de serviços ativos da empresa, que será usada no modal
+            # de criação de agendamentos.
             """
             SELECT id_servico, nome, duracao_em_min
             FROM servico
@@ -119,10 +129,20 @@ def gerenciar_agendamentos_view(request):
             {"id": row[0], "nome": row[1], "duracao_minutos": row[2]}
             for row in cursor.fetchall()
         ]
+        
+        # ==============================================================================
+        # 1ª Query (query_agenda): Busca o "recheio" da tabela.
+        # - Traz todos os horários dos profissionais no dia.
+        # - O segredo aqui são os LEFT JOINs: eles garantem que os horários livres 
+        #   também retornem na busca (vazios), e não apenas os horários ocupados.
+        # ==============================================================================
 
         # ==========================================================
         # CONSULTA DOS HORÁRIOS DA AGENDA
         # ==========================================================
+        # Esta query busca os dados de agendamento para uma data específica e empresa.
+        # Utiliza LEFT JOIN para incluir todos os horários da agenda, mesmo os que não
+        # possuem agendamentos (horários livres).
         query_agenda = """
             SELECT 
                 a.hr_agenda,
@@ -158,6 +178,15 @@ def gerenciar_agendamentos_view(request):
                 "servico_duracao": row[5],
             }
             
+        # ==============================================================================
+        # 2ª Query (Régua de horários): Busca a "linha do tempo" lateral.
+        # - Usa SELECT DISTINCT e ORDER BY para criar uma lista única, sem repetições 
+        #   e em ordem cronológica de todos os horários do dia (ex: 08:00, 08:30).
+        # ==============================================================================
+            
+        # Esta query busca todos os horários distintos (sem repetição) para a data
+        # e empresa atuais, ordenando-os cronologicamente. Isso é usado para
+        # construir a "régua" de horas na lateral da agenda.
         cursor.execute(
             """
             SELECT DISTINCT a.hr_agenda
@@ -260,16 +289,21 @@ def salvar_agendamento_view(request):
 
         with connection.cursor() as cursor:
             if perfil_sessao == "cliente":
+                # Se o usuário logado for um cliente, busca seu 'id_cliente'
+                # diretamente pelo login da sessão.
                 cursor.execute(
                     "SELECT id_cliente FROM cliente WHERE login = %s", [login_sessao]
                 )
                 id_cliente = cursor.fetchone()[0]
             else:
+                # Se for outro perfil, o 'id_cliente' é obtido do formulário.
                 id_cliente = request.POST.get("id_cliente")
                 
             if hora_agenda:
                 hora_agenda = hora_agenda[:5]
                 
+            # Busca a duração em minutos do serviço selecionado para calcular
+            # quantos blocos de 30 minutos serão necessários na agenda.
             cursor.execute(
                 "SELECT duracao_em_min FROM servico WHERE id_servico = %s", [id_servico]
             )
@@ -281,6 +315,10 @@ def salvar_agendamento_view(request):
             duracao = int(resultado_duracao[0])
             blocos_necessarios = max(1, duracao // 30)
 
+            # Verifica na agenda se os blocos de tempo necessários a partir do
+            # horário de início estão disponíveis (sem agendamento). A consulta
+            # retorna os slots de agenda para o profissional e data/hora especificados,
+            # limitando ao número de blocos necessários.
             query_busca = """
                 SELECT id_agenda, id_agendamento
                 FROM agenda
@@ -298,6 +336,8 @@ def salvar_agendamento_view(request):
             slots = cursor.fetchall()
 
             if len(slots) == blocos_necessarios and all(slot[1] is None for slot in slots):
+                # Se todos os slots necessários estiverem livres, insere um novo registro
+                # na tabela 'agendamento' e retorna o ID do novo agendamento.
                 cursor.execute(
                     """
                     INSERT INTO agendamento (status, id_servico, id_cliente)
@@ -310,6 +350,8 @@ def salvar_agendamento_view(request):
                 
                 ids_agenda = tuple(slot[0] for slot in slots)
 
+                # Atualiza os slots na tabela 'agenda', vinculando-os ao ID do
+                # agendamento recém-criado.
                 cursor.execute(
                     """
                     UPDATE agenda

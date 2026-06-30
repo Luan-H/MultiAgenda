@@ -12,6 +12,9 @@ from datetime import timedelta, datetime as dt_calc
 # VALIDAÇÃO DE UNICIDADE DE LOGIN
 # ==========================================================
 def login_ja_existe(login_digitado):
+    # Esta função verifica se um login já está em uso em qualquer uma das
+    # tabelas de usuários do sistema (cliente, profissional, ou usuario).
+    # O UNION combina os resultados para uma verificação única e eficiente.
     with connection.cursor() as cursor:
         query = """
             SELECT 1 FROM cliente WHERE login = %s
@@ -49,10 +52,9 @@ def gerenciar_profissionais_view(request, id_edit=None):
     # CARREGAMENTO DOS DADOS PARA EDIÇÃO
     # ==========================================================
     if id_edit:
-
         with connection.cursor() as cursor:
-
-            # Busca os dados do profissional selecionado
+            # Se um 'id_edit' foi passado na URL, busca os dados do profissional
+            # correspondente para preencher o formulário de edição.
             cursor.execute(
                 """
                 SELECT id_profissional, nome, email, telefone, login
@@ -64,7 +66,7 @@ def gerenciar_profissionais_view(request, id_edit=None):
 
             row = cursor.fetchone()
 
-            # Monta o objeto utilizado para preencher o formulário
+            # Monta o dicionário que será enviado ao template para o formulário.
             if row:
                 profissional_para_editar = {
                     "id": row[0],
@@ -88,13 +90,12 @@ def gerenciar_profissionais_view(request, id_edit=None):
         with connection.cursor() as cursor:
 
             # ==========================================================
-            # EDIÇÃO DE PROFISSIONAL EXISTENTE
+            # ATUALIZAÇÃO DE PROFISSIONAL EXISTENTE
             # ==========================================================
             if id_edit:
-
-                # Atualiza a senha apenas se uma nova foi informada
+                # Se uma nova senha foi fornecida, ela é criptografada e o
+                # comando UPDATE incluirá a atualização da senha.
                 if senha_crua:
-
                     senha_hash = make_password(senha_crua)
 
                     cursor.execute(
@@ -110,7 +111,8 @@ def gerenciar_profissionais_view(request, id_edit=None):
                         [nome, email, telefone, login_prof, senha_hash, id_edit],
                     )
                 else:
-
+                    # Caso contrário, a senha atual é mantida, atualizando
+                    # apenas os outros campos.
                     cursor.execute(
                         """
                         UPDATE profissional
@@ -134,7 +136,7 @@ def gerenciar_profissionais_view(request, id_edit=None):
                     # Criptografa a senha antes de salvar
                     senha_hash = make_password(senha_crua) if senha_crua else ""
     
-                    # Obtém a empresa do usuário logado
+                    # Obtém o 'id_empresa' do usuário logado para associar o novo profissional.
                     cursor.execute(
                         "SELECT id_empresa FROM usuario WHERE login = %s", [login_sessao]
                     )
@@ -181,6 +183,9 @@ def gerenciar_profissionais_view(request, id_edit=None):
         # ==========================================================
         if termo_busca:
 
+            # A consulta principal que lista os profissionais.
+            # O subselect com EXISTS é uma forma otimizada de verificar se o profissional
+            # já tem uma agenda futura cadastrada, sem a necessidade de um JOIN custoso.
             query_list = """
                 SELECT p.id_profissional AS id,
                        p.nome,
@@ -214,8 +219,8 @@ def gerenciar_profissionais_view(request, id_edit=None):
             )
 
         else:
-
-            query_list = """
+            # Mesma consulta, mas sem o filtro de busca (ILIKE).
+            query_list = """ 
                 SELECT p.id_profissional AS id,
                        p.nome,
                        p.email,
@@ -242,7 +247,7 @@ def gerenciar_profissionais_view(request, id_edit=None):
         colunas = [col[0] for col in cursor.description]
         profissionais_lista = [dict(zip(colunas, row)) for row in cursor.fetchall()]
 
-        # Relaciona os números dos dias da semana aos seus nomes
+        # Mapeia o número do dia da semana (padrão ISO) para o nome correspondente.
         mapa_dias = {
             1: "segunda",
             2: "terca",
@@ -257,8 +262,8 @@ def gerenciar_profissionais_view(request, id_edit=None):
         # CARREGAMENTO DAS CONFIGURAÇÕES DE AGENDA
         # ==========================================================
         for prof in profissionais_lista:
-
-            # Configuração padrão da agenda
+            # Define uma configuração de horários padrão para a semana, que será
+            # usada caso o profissional ainda não tenha uma agenda customizada.
             config = {
                 "segunda": {"ativo": True, "inicio": "08:00", "fim": "18:00"},
                 "terca": {"ativo": True, "inicio": "08:00", "fim": "18:00"},
@@ -269,12 +274,16 @@ def gerenciar_profissionais_view(request, id_edit=None):
                 "domingo": {"ativo": False, "inicio": "08:00", "fim": "12:00"},
             }
 
-            # Se já possuir agenda cadastrada, desativa o padrão
+            # Se o profissional já tem uma agenda futura (verificado pelo 'tem_agenda'),
+            # o padrão é desativado para que apenas os horários salvos no banco
+            # sejam considerados.
             if prof["tem_agenda"]:
                 for dia in config:
                     config[dia]["ativo"] = False
 
-            # Busca os horários cadastrados para cada dia da semana
+            # Busca os horários de início e fim para cada dia da semana que o
+            # profissional tem agenda cadastrada. O GROUP BY agrega os resultados
+            # por dia da semana.
             cursor.execute(
                 """
                 SELECT
@@ -295,17 +304,18 @@ def gerenciar_profissionais_view(request, id_edit=None):
                 dia_nome = mapa_dias.get(dia_num)
 
                 if dia_nome:
-
                     hr_ini = row[1]
                     hr_fim = row[2]
 
+                    # Formata a hora de início para o formato HH:MM.
                     str_ini = (
                         hr_ini.strftime("%H:%M")
                         if hasattr(hr_ini, "strftime")
                         else str(hr_ini)[:5]
                     )
 
-                    # Soma 30 minutos ao último horário encontrado
+                    # O horário final representa o início do último slot. Para obter o
+                    # fim da jornada, somamos 30 minutos a ele.
                     if hr_fim:
 
                         if hasattr(hr_fim, "hour"):
@@ -327,6 +337,8 @@ def gerenciar_profissionais_view(request, id_edit=None):
                     else:
                         str_fim = "18:00"
 
+                    # Atualiza a configuração do dia com os horários vindos do banco,
+                    # marcando o dia como ativo.
                     config[dia_nome] = {
                         "ativo": True,
                         "inicio": str_ini,
@@ -370,7 +382,7 @@ def salvar_agenda_profissional_view(request, id_profissional):
 
     if request.method == "POST":
 
-        # Relaciona os nomes dos dias ao índice utilizado pelo Python
+        # Mapeia os nomes dos dias da semana para o índice correspondente no Python (weekday).
         dias_mapeamento = {
             "segunda": 0,
             "terca": 1,
@@ -385,7 +397,9 @@ def salvar_agenda_profissional_view(request, id_profissional):
 
         with connection.cursor() as cursor:
 
-            # Remove horários futuros que ainda não possuem agendamento
+            # Antes de inserir os novos horários, remove todos os slots futuros
+            # do profissional que ainda não foram reservados (id_agendamento IS NULL).
+            # Isso garante que a agenda seja reconstruída do zero.
             cursor.execute(
                 """
                 DELETE FROM agenda
@@ -396,7 +410,8 @@ def salvar_agenda_profissional_view(request, id_profissional):
                 [id_profissional, hoje],
             )
 
-            # Gera a agenda para os próximos 30 dias
+            # Itera pelos próximos 30 dias a partir de hoje para gerar os novos
+            # slots de agenda.
             for i in range(30):
 
                 data_alvo = hoje + timedelta(days=i)
@@ -405,6 +420,7 @@ def salvar_agenda_profissional_view(request, id_profissional):
 
                 is_ativo = request.POST.get(f"{dia_semana_nome}_ativo")
 
+                # Se o dia da semana está marcado como 'ativo' no formulário...
                 if is_ativo:
 
                     hr_inicio_str = request.POST.get(f"{dia_semana_nome}_inicio")
@@ -421,9 +437,9 @@ def salvar_agenda_profissional_view(request, id_profissional):
 
                     fim = dt_calc.strptime(hr_fim_str, "%H:%M")
 
-                    # Cria horários de 30 em 30 minutos
+                    # ...cria slots de 30 em 30 minutos desde o início até o fim
+                    # do expediente definido.
                     while atual < fim:
-
                         cursor.execute(
                             """
                             INSERT INTO agenda (
@@ -453,8 +469,8 @@ def excluir_profissional_view(request, id_profissional):
         return redirect("dashboard_admin")
 
     with connection.cursor() as cursor:
-
-        # Desativa o profissional sem removê-lo do banco
+        # Realiza uma exclusão lógica, alterando o status do profissional para '0' (inativo).
+        # Isso mantém a integridade dos registros históricos de agendamentos.
         cursor.execute(
             """
             UPDATE profissional

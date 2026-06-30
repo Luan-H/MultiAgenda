@@ -10,6 +10,9 @@ from django.contrib.auth.hashers import make_password
 # VALIDAÇÃO DE UNICIDADE DE LOGIN
 # ==========================================================
 def login_ja_existe(login_digitado):
+    # Esta função verifica se um login já está em uso em qualquer uma das
+    # tabelas de usuários do sistema (cliente, profissional, ou usuario).
+    # O UNION combina os resultados para uma verificação única e eficiente.
     with connection.cursor() as cursor:
         query = """
             SELECT 1 FROM cliente WHERE login = %s
@@ -44,7 +47,8 @@ def gerenciar_clientes_view(request, id_edit=None):
     # ==========================================================
     if id_edit:
         with connection.cursor() as cursor:
-            # Busca os dados do cliente selecionado
+            # Busca os dados do cliente selecionado para preencher o formulário
+            # no modo de edição.
             cursor.execute(
                 """
                 SELECT id_cliente, nome, login, telefone, observacoes
@@ -82,7 +86,8 @@ def gerenciar_clientes_view(request, id_edit=None):
             # EDIÇÃO DE CLIENTE EXISTENTE
             # ==========================================================
             if id_edit:
-                # Atualiza também a senha caso uma nova tenha sido informada
+                # Se uma nova senha foi fornecida no formulário, ela é criptografada
+                # e a query de UPDATE inclui o campo 'senha'.
                 if senha_crua:
                     senha_hash = make_password(senha_crua)
                     cursor.execute(
@@ -104,7 +109,8 @@ def gerenciar_clientes_view(request, id_edit=None):
                             id_edit,
                         ],
                     )
-                # Mantém a senha atual caso o campo tenha sido deixado vazio
+                # Se o campo de senha estiver vazio, a query de UPDATE não mexe
+                # na senha atual, preservando a credencial do cliente.
                 else:
                     cursor.execute(
                         """
@@ -128,9 +134,11 @@ def gerenciar_clientes_view(request, id_edit=None):
                     # Criptografa a senha antes de salvar
                     senha_hash = make_password(senha_crua) if senha_crua else ""
                     
-                    # Busca a empresa vinculada ao usuário logado
+                    # Busca o ID da empresa do usuário logado (admin ou profissional)
+                    # para associar o novo cliente à empresa correta.
                     cursor.execute(
                         """
+                        -- O UNION é usado aqui para encontrar o id_empresa tanto na tabela de usuários quanto na de profissionais.
                         SELECT id_empresa FROM usuario WHERE login = %s
                         UNION
                         SELECT id_empresa FROM profissional WHERE login = %s
@@ -139,7 +147,8 @@ def gerenciar_clientes_view(request, id_edit=None):
                     )
                     resultado_empresa = cursor.fetchone()
 
-                    # Cadastra o cliente vinculado à empresa encontrada
+                    # Se a empresa for encontrada, insere o novo cliente no banco de dados,
+                    # já com o 'id_empresa' correto.
                     if resultado_empresa:
                         id_empresa = resultado_empresa[0]
                         cursor.execute(
@@ -183,7 +192,8 @@ def gerenciar_clientes_view(request, id_edit=None):
     termo_busca = request.GET.get("q", "")
 
     with connection.cursor() as cursor:
-        # Identifica a empresa do usuário logado
+        # Identifica o 'id_empresa' do usuário logado para garantir que ele só
+        # visualize clientes da sua própria empresa.
         cursor.execute(
             """
             SELECT id_empresa FROM usuario WHERE login = %s
@@ -205,6 +215,8 @@ def gerenciar_clientes_view(request, id_edit=None):
         # ==========================================================
         # Clientes visualizam apenas seus próprios dados
         if perfil_sessao == "cliente":
+            # Se o perfil for de cliente, a consulta é restrita para retornar
+            # apenas os dados do próprio cliente logado.
             cursor.execute(
                 """
                 SELECT id_cliente, nome, login, telefone
@@ -215,8 +227,9 @@ def gerenciar_clientes_view(request, id_edit=None):
                 [login_sessao],
             )
         else:
-            # Realiza pesquisa quando existe texto informado
+            # Para outros perfis, a busca pode ser feita com um termo de pesquisa.
             if termo_busca:
+                # A query usa ILIKE para busca case-insensitive em múltiplos campos.
                 query_list = """
                     SELECT id_cliente, nome, login, telefone
                     FROM cliente
@@ -231,7 +244,7 @@ def gerenciar_clientes_view(request, id_edit=None):
                 """
                 param = f"%{termo_busca}%"
                 cursor.execute(query_list, [id_empresa, param, param, param])
-            # Lista todos os clientes ativos da empresa
+            # Se não houver termo de busca, lista todos os clientes ativos da empresa.
             else:
                 cursor.execute(
                     """
@@ -243,7 +256,8 @@ def gerenciar_clientes_view(request, id_edit=None):
                 """,
                     [id_empresa],
                 )
-        # Converte o resultado para uma lista de dicionários
+        # O resultado da consulta é transformado em uma lista de dicionários
+        # para facilitar o acesso aos dados no template.
         clientes_lista = [
             {"id": row[0], "nome": row[1], "login": row[2], "telefone": row[3]}
             for row in cursor.fetchall()
@@ -276,7 +290,8 @@ def excluir_cliente_view(request, id_cliente):
         return redirect("gerenciar_clientes")
     
     with connection.cursor() as cursor:
-        # Desativa o cliente sem removê-lo do banco
+        # Realiza uma exclusão lógica, atualizando o status do cliente para '0' (inativo)
+        # em vez de remover o registro. Isso preserva o histórico de agendamentos.
         cursor.execute(
             """
             UPDATE cliente

@@ -26,7 +26,9 @@ def gerenciar_servicos_view(request, id_edit=None):
         # IDENTIFICAÇÃO DA EMPRESA DO USUÁRIO
         # ==========================================================
 
-        # Busca a empresa associada ao usuário logado
+        # Busca o 'id_empresa' do usuário logado para garantir que a manipulação
+        # de serviços seja restrita à empresa correta. O UNION permite buscar
+        # tanto na tabela 'usuario' (admins) quanto 'profissional'.
         cursor.execute(
             """
             SELECT id_empresa FROM usuario WHERE login = %s
@@ -49,7 +51,8 @@ def gerenciar_servicos_view(request, id_edit=None):
 
         if id_edit:
 
-            # Busca os dados do serviço selecionado
+            # Se um 'id_edit' for passado, busca os dados do serviço correspondente
+            # para preencher os campos do formulário no modo de edição.
             cursor.execute(
                 """
                 SELECT
@@ -89,6 +92,8 @@ def gerenciar_servicos_view(request, id_edit=None):
             # ==========================================================
             if id_edit:
 
+                # Executa o comando UPDATE para salvar as alterações de um serviço
+                # existente no banco de dados.
                 cursor.execute(
                     """
                     UPDATE servico
@@ -105,6 +110,8 @@ def gerenciar_servicos_view(request, id_edit=None):
             # ==========================================================
             else:
 
+                # Insere um novo registro na tabela 'servico', associando-o
+                # à empresa do usuário logado.
                 cursor.execute(
                     """
                     INSERT INTO servico (
@@ -139,6 +146,8 @@ def gerenciar_servicos_view(request, id_edit=None):
 
         if termo_busca:
 
+            # Se um termo de busca foi fornecido, a consulta filtra os serviços
+            # pelo nome, usando ILIKE para uma busca case-insensitive.
             query_list = """
                 SELECT
                     id_servico AS id,
@@ -158,6 +167,8 @@ def gerenciar_servicos_view(request, id_edit=None):
 
         else:
 
+            # Se não houver termo de busca, a consulta retorna todos os serviços
+            # ativos da empresa, ordenados por nome.
             query_list = """
                 SELECT
                     id_servico AS id,
@@ -172,7 +183,8 @@ def gerenciar_servicos_view(request, id_edit=None):
 
             cursor.execute(query_list, [id_empresa])
 
-        # Converte o resultado da consulta para uma lista de dicionários
+        # Transforma o resultado bruto da consulta em uma lista de dicionários,
+        # o que facilita a renderização dos dados no template HTML.
         colunas = [col[0] for col in cursor.description]
 
         servicos_lista = [dict(zip(colunas, row)) for row in cursor.fetchall()]
@@ -204,7 +216,8 @@ def excluir_servico_view(request, id_servico):
 
     with connection.cursor() as cursor:
 
-        # Desativa o serviço sem removê-lo fisicamente do banco
+        # Realiza uma exclusão lógica (soft delete), marcando o serviço como inativo ('0')
+        # em vez de apagar o registro, para manter a integridade do histórico.
         cursor.execute(
             """
             UPDATE servico
