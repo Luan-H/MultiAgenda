@@ -129,13 +129,6 @@ def gerenciar_agendamentos_view(request):
             {"id": row[0], "nome": row[1], "duracao_minutos": row[2]}
             for row in cursor.fetchall()
         ]
-        
-        # ==============================================================================
-        # 1ª Query (query_agenda): Busca o "recheio" da tabela.
-        # - Traz todos os horários dos profissionais no dia.
-        # - O segredo aqui são os LEFT JOINs: eles garantem que os horários livres 
-        #   também retornem na busca (vazios), e não apenas os horários ocupados.
-        # ==============================================================================
 
         # ==========================================================
         # CONSULTA DOS HORÁRIOS DA AGENDA
@@ -177,12 +170,6 @@ def gerenciar_agendamentos_view(request):
                 "servico_nome": row[4],
                 "servico_duracao": row[5],
             }
-            
-        # ==============================================================================
-        # 2ª Query (Régua de horários): Busca a "linha do tempo" lateral.
-        # - Usa SELECT DISTINCT e ORDER BY para criar uma lista única, sem repetições 
-        #   e em ordem cronológica de todos os horários do dia (ex: 08:00, 08:30).
-        # ==============================================================================
             
         # Esta query busca todos os horários distintos (sem repetição) para a data
         # e empresa atuais, ordenando-os cronologicamente. Isso é usado para
